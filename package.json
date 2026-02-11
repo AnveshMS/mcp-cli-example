@@ -1,0 +1,5 @@
+{
+  "dependencies": {
+    "mcp-cli": "github:philschmid/mcp-cli"
+  }
+}
