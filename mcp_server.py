@@ -45,7 +45,7 @@ def build_tool_schema(name: str, tool_info: dict) -> dict:
 
 def handle_initialize(request_id):
     """Handle initialization request"""
-    logger.info("🔧 INITIALIZE request received (called by mcp-cli)")
+    logger.info("🔧 INITIALIZE request received")
     response = {
         "jsonrpc": "2.0",
         "id": request_id,
@@ -66,7 +66,7 @@ def handle_initialize(request_id):
 
 def handle_list_tools(request_id):
     """Handle list tools request"""
-    logger.info("📋 LIST TOOLS request received (called by mcp-cli)")
+    logger.info("📋 LIST TOOLS request received")
     tools = []
     for name, tool_info in TOOLS.items():
         tools.append(build_tool_schema(name, tool_info))
@@ -87,7 +87,7 @@ def handle_call_tool(request_id, params):
     tool_name = params.get("name")
     arguments = params.get("arguments", {})
     
-    logger.info(f"🔨 CALL TOOL request received (called by mcp-cli)")
+    logger.info(f"🔨 CALL TOOL request received")
     logger.info(f"   Tool: {tool_name}")
     logger.info(f"   Arguments: {arguments}")
 
@@ -145,7 +145,8 @@ def main():
     """Main loop - read from stdin, process, write to stdout"""
     logger.info("=" * 60)
     logger.info("🚀 MCP SERVER STARTED (stdio mode)")
-    logger.info("   Waiting for JSON-RPC requests from mcp-cli...")
+    logger.info("   Waiting for JSON-RPC requests via stdin...")
+    logger.info("   (Can be called by mcp-cli OR directly)")
     logger.info("=" * 60)
     
     while True:
