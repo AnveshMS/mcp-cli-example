@@ -6,7 +6,18 @@ This allows mcp-cli to communicate with the server via standard input/output
 
 import json
 import sys
+import logging
+from datetime import datetime
 from tools import TOOLS
+
+# Configure logging to stderr (so it doesn't interfere with JSON-RPC on stdout)
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s [MCP-SERVER] %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S',
+    stream=sys.stderr
+)
+logger = logging.getLogger(__name__)
 
 
 def build_tool_schema(name: str, tool_info: dict) -> dict:
@@ -34,6 +45,7 @@ def build_tool_schema(name: str, tool_info: dict) -> dict:
 
 def handle_initialize(request_id):
     """Handle initialization request"""
+    logger.info("🔧 INITIALIZE request received (called by mcp-cli)")
     response = {
         "jsonrpc": "2.0",
         "id": request_id,
@@ -48,11 +60,13 @@ def handle_initialize(request_id):
             }
         }
     }
+    logger.info(f"✓ Initialized: {response['result']['serverInfo']['name']}")
     return response
 
 
 def handle_list_tools(request_id):
     """Handle list tools request"""
+    logger.info("📋 LIST TOOLS request received (called by mcp-cli)")
     tools = []
     for name, tool_info in TOOLS.items():
         tools.append(build_tool_schema(name, tool_info))
@@ -64,6 +78,7 @@ def handle_list_tools(request_id):
             "tools": tools
         }
     }
+    logger.info(f"✓ Returning {len(tools)} tools: {[t['name'] for t in tools]}")
     return response
 
 
@@ -71,8 +86,13 @@ def handle_call_tool(request_id, params):
     """Handle tool call request"""
     tool_name = params.get("name")
     arguments = params.get("arguments", {})
+    
+    logger.info(f"🔨 CALL TOOL request received (called by mcp-cli)")
+    logger.info(f"   Tool: {tool_name}")
+    logger.info(f"   Arguments: {arguments}")
 
     if not tool_name or tool_name not in TOOLS:
+        logger.error(f"✗ Tool '{tool_name}' not found")
         return {
             "jsonrpc": "2.0",
             "id": request_id,
@@ -85,6 +105,7 @@ def handle_call_tool(request_id, params):
     try:
         tool_function = TOOLS[tool_name]["function"]
         result = tool_function(**arguments)
+        logger.info(f"✓ Tool executed successfully: {result}")
 
         return {
             "jsonrpc": "2.0",
@@ -99,6 +120,7 @@ def handle_call_tool(request_id, params):
             }
         }
     except TypeError as e:
+        logger.error(f"✗ Invalid parameters: {str(e)}")
         return {
             "jsonrpc": "2.0",
             "id": request_id,
@@ -108,6 +130,7 @@ def handle_call_tool(request_id, params):
             }
         }
     except Exception as e:
+        logger.error(f"✗ Error executing tool: {str(e)}")
         return {
             "jsonrpc": "2.0",
             "id": request_id,
@@ -120,11 +143,17 @@ def handle_call_tool(request_id, params):
 
 def main():
     """Main loop - read from stdin, process, write to stdout"""
+    logger.info("=" * 60)
+    logger.info("🚀 MCP SERVER STARTED (stdio mode)")
+    logger.info("   Waiting for JSON-RPC requests from mcp-cli...")
+    logger.info("=" * 60)
+    
     while True:
         try:
             # Read a line from stdin
             line = sys.stdin.readline()
             if not line:
+                logger.info("📴 No more input - shutting down")
                 break
             
             # Parse JSON
@@ -132,6 +161,8 @@ def main():
             method = request.get("method")
             request_id = request.get("id")
             params = request.get("params", {})
+            
+            logger.info(f"\n📥 Received request: method='{method}', id={request_id}")
 
             # Route to appropriate handler
             if method == "initialize":
@@ -141,6 +172,7 @@ def main():
             elif method == "tools/call":
                 response = handle_call_tool(request_id, params)
             else:
+                logger.warning(f"⚠️  Unknown method: {method}")
                 response = {
                     "jsonrpc": "2.0",
                     "id": request_id,
@@ -155,6 +187,7 @@ def main():
             sys.stdout.flush()
 
         except json.JSONDecodeError as e:
+            logger.error(f"✗ JSON Parse error: {str(e)}")
             error_response = {
                 "jsonrpc": "2.0",
                 "id": None,
@@ -166,14 +199,7 @@ def main():
             print(json.dumps(error_response))
             sys.stdout.flush()
         except Exception as e:
-            error_response = {
-                "jsonrpc": "2.0",
-                "id": None,
-                "error": {
-                    "code": -32603,
-                    "message": f"Internal error: {str(e)}"
-                }
-            }
+            logger.error(f"✗ Internal error: {str(e)}")
             print(json.dumps(error_response))
             sys.stdout.flush()
 
